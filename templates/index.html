@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TfL Natural Language Assistant</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f3f4f6;color:#1f2933}
+.topbar{background:#111;color:white;height:68px;display:flex;align-items:center}
+.topbar-inner{width:min(1100px,calc(100% - 40px));margin:auto;display:flex;align-items:center;gap:14px}
+.tfl-mark{width:42px;height:42px;border-radius:50%;background:#dc241f;display:flex;align-items:center;justify-content:center;font-weight:bold}
+.brand{font-size:18px;font-weight:600}
+.container{width:min(1000px,calc(100% - 40px));margin:auto}
+.hero{padding:58px 0 32px;text-align:center}
+.hero h1{margin:0;font-size:46px;letter-spacing:-1.5px;color:#111}
+.hero p{margin:14px 0 0;font-size:18px;color:#69727d}
+.card,.result-card,.how-it-works{background:white;border-radius:18px;box-shadow:0 8px 30px rgba(0,0,0,.07)}
+.card{padding:28px}
+.input-wrap{position:relative;display:flex;align-items:center}
+input{width:100%;height:58px;border:1px solid #d4d8dd;border-radius:12px;padding:0 58px 0 18px;font-size:16px;outline:none}
+input:focus{border-color:#999;box-shadow:0 0 0 3px rgba(0,0,0,.05)}
+.mic{position:absolute;right:8px;width:42px;height:42px;border:0;border-radius:50%;background:#f0f1f2;cursor:pointer;font-size:18px}
+.mic.listening{background:#dc241f;color:white;animation:pulse 1.2s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 12px rgba(220,36,31,0)}}
+.search-button{width:100%;height:54px;margin-top:12px;border:0;border-radius:11px;background:#dc241f;color:white;font-size:16px;font-weight:bold;cursor:pointer}
+.search-button:hover{background:#b91d19}
+.voice-status{min-height:22px;margin-top:10px;text-align:center;color:#69727d;font-size:14px}
+.loading{display:none;align-items:center;justify-content:center;gap:10px;margin-top:16px;color:#69727d;font-size:14px}
+.loading.active{display:flex}
+.spinner{width:16px;height:16px;border:2px solid #ddd;border-top-color:#dc241f;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.suggestion-heading,.section-heading{font-size:14px;font-weight:bold;color:#555;text-transform:uppercase;letter-spacing:.7px}
+.suggestion-heading{margin:30px 0 18px}
+.category{margin-bottom:20px}
+.category-title{font-size:14px;font-weight:bold;margin-bottom:9px}
+.suggestions,.recent-list{display:flex;flex-wrap:wrap;gap:9px}
+.suggestion,.recent-item{border:1px solid #ddd;background:#fafafa;border-radius:9px;padding:10px 13px;font-size:14px;color:#333;cursor:pointer}
+.suggestion:hover,.recent-item:hover{border-color:#bbb;background:#f1f1f1}
+.result-card{margin-top:22px;overflow:hidden}
+.result-header{padding:18px 22px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between}
+.result-title{font-weight:bold}
+.live{display:flex;align-items:center;gap:7px;font-size:13px;color:#4d5965}
+.live-dot{width:8px;height:8px;border-radius:50%;background:#28a745}
+.result{padding:22px;white-space:pre-line;line-height:1.7;font-size:15px}
+.technical{border-top:1px solid #eee}
+.technical summary{padding:15px 22px;cursor:pointer;color:#69727d;font-size:13px}
+.command{padding:0 22px 20px;font-family:Consolas,monospace;font-size:12px;line-height:1.8;color:#59636e}
+.recent{margin-top:32px}
+.how-it-works{margin-top:42px;padding:25px}
+.section-heading{margin-bottom:12px}
+.flow{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px}
+.flow-step{padding:10px 13px;border:1px solid #ddd;border-radius:8px;background:#fafafa;font-size:13px}
+.arrow{color:#999;font-size:18px}
+.footer{text-align:center;padding:45px 0 35px;color:#7a838d;font-size:12px;line-height:1.8}
+.footer strong{color:#444}
+@media(max-width:650px){
+.container{width:calc(100% - 24px)}
+.topbar-inner{width:calc(100% - 24px)}
+.hero{padding-top:40px}
+.hero h1{font-size:36px}
+.hero p{font-size:16px}
+.card{padding:20px}
+.result-header{align-items:flex-start;flex-direction:column;gap:10px}
+.flow{flex-direction:column}
+.arrow{transform:rotate(90deg)}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+<div class="topbar-inner">
+<div class="tfl-mark">TfL</div>
+<div class="brand">Natural Language Assistant</div>
+</div>
+</header>
+
+<main class="container">
+
+<section class="hero">
+<h1>How can I help?</h1>
+<p>Ask about live London Underground arrivals and service status.</p>
+</section>
+
+<section class="card">
+
+<form method="POST" id="command-form">
+<div class="input-wrap">
+<input type="text" name="command" id="command" value="{{ raw }}" placeholder="e.g. When is the next Northern Line train?" autocomplete="off" autofocus>
+<button type="button" class="mic" id="mic-button" title="Voice input" aria-label="Voice input">🎙</button>
+</div>
+<button type="submit" class="search-button">Search</button>
+</form>
+
+<div class="voice-status" id="voice-status"></div>
+
+<div class="loading" id="loading">
+<span class="spinner"></span>
+<span>Searching live TfL data...</span>
+</div>
+
+<div class="suggestion-heading">Try asking</div>
+
+<div class="category">
+<div class="category-title">Arrivals</div>
+<div class="suggestions">
+<button type="button" class="suggestion">Next Northern Line train</button>
+<button type="button" class="suggestion">Next 5 trains from Waterloo</button>
+<button type="button" class="suggestion">Next Piccadilly Line train</button>
+</div>
+</div>
+
+<div class="category">
+<div class="category-title">Service status</div>
+<div class="suggestions">
+<button type="button" class="suggestion">Piccadilly Line delays</button>
+<button type="button" class="suggestion">Is the Central Line running normally?</button>
+<button type="button" class="suggestion">Are there delays on the Jubilee Line?</button>
+</div>
+</div>
+
+</section>
+
+{% if result %}
+<section class="result-card">
+<div class="result-header">
+<div class="result-title">TfL Live Information</div>
+<div class="live"><span class="live-dot"></span>Live TfL data</div>
+</div>
+
+<div class="result">{{ result }}</div>
+
+{% if command %}
+<details class="technical">
+<summary>Show technical details</summary>
+<div class="command">
+Intent: {{ command.get("intent", "unknown") }}<br>
+{% if command.get("mode") %}Mode: {{ command.get("mode") }}<br>{% endif %}
+{% if command.get("line") %}Line: {{ command.get("line") }}<br>{% endif %}
+{% if command.get("station") %}Station: {{ command.get("station") }}<br>{% endif %}
+{% if command.get("count") %}Count: {{ command.get("count") }}{% endif %}
+</div>
+</details>
+{% endif %}
+</section>
+{% endif %}
+
+<section class="recent" id="recent-section">
+<div class="section-heading">Recent searches</div>
+<div class="recent-list" id="recent-list"></div>
+</section>
+
+<section class="how-it-works">
+<div class="section-heading">How it works</div>
+<div class="flow">
+<div class="flow-step">Voice / Text</div>
+<div class="arrow">→</div>
+<div class="flow-step">Natural Language Parser</div>
+<div class="arrow">→</div>
+<div class="flow-step">Intent + Entities</div>
+<div class="arrow">→</div>
+<div class="flow-step">TfL Unified API</div>
+<div class="arrow">→</div>
+<div class="flow-step">Live Transit Data</div>
+</div>
+</section>
+
+<footer class="footer">
+<strong>TfL Natural Language Assistant</strong><br>
+Built with Python · Flask · JavaScript · TfL Unified API<br>
+Natural-language intent parsing · Speech recognition · REST API integration
+</footer>
+
+</main>
+
+<script>
+const input = document.getElementById("command");
+const form = document.getElementById("command-form");
+const micButton = document.getElementById("mic-button");
+const voiceStatus = document.getElementById("voice-status");
+const loading = document.getElementById("loading");
+const recentList = document.getElementById("recent-list");
+
+function getRecentSearches() {
+    try {
+        return JSON.parse(localStorage.getItem("tflRecentSearches") || "[]");
+    } catch {
+        return [];
+    }
+}
+
+function saveRecentSearch(query) {
+    query = query.trim();
+    if (!query) return;
+
+    let searches = getRecentSearches();
+
+    searches = searches.filter(
+        item => item.toLowerCase() !== query.toLowerCase()
+    );
+
+    searches.unshift(query);
+    searches = searches.slice(0, 5);
+
+    localStorage.setItem(
+        "tflRecentSearches",
+        JSON.stringify(searches)
+    );
+
+    renderRecentSearches();
+}
+
+function renderRecentSearches() {
+    const searches = getRecentSearches();
+
+    recentList.innerHTML = "";
+
+    if (!searches.length) {
+        recentList.innerHTML =
+            '<span style="color:#999;font-size:13px;">No recent searches yet.</span>';
+        return;
+    }
+
+    searches.forEach(query => {
+        const button = document.createElement("button");
+
+        button.type = "button";
+        button.className = "recent-item";
+        button.textContent = "↻ " + query;
+
+        button.addEventListener("click", () => {
+            input.value = query;
+            form.requestSubmit();
+        });
+
+        recentList.appendChild(button);
+    });
+}
+
+form.addEventListener("submit", event => {
+    const query = input.value.trim();
+
+    if (!query) {
+        event.preventDefault();
+        return;
+    }
+
+    saveRecentSearch(query);
+    loading.classList.add("active");
+});
+
+document.querySelectorAll(".suggestion").forEach(button => {
+    button.addEventListener("click", () => {
+        input.value = button.textContent.trim();
+        form.requestSubmit();
+    });
+});
+
+renderRecentSearches();
+
+const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+if (!SpeechRecognition) {
+    micButton.disabled = true;
+    voiceStatus.textContent =
+        "Voice input is not supported by this browser. Try Chrome or Edge.";
+} else {
+    const recognition = new SpeechRecognition();
+
+    recognition.lang = "en-GB";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    micButton.addEventListener("click", () => {
+        try {
+            recognition.start();
+            micButton.classList.add("listening");
+            voiceStatus.textContent = "Listening...";
+        } catch {
+            voiceStatus.textContent =
+                "Could not start voice input.";
+        }
+    });
+
+    recognition.onresult = event => {
+        input.value = event.results[0][0].transcript;
+        voiceStatus.textContent = "Searching...";
+        form.requestSubmit();
+    };
+
+    recognition.onerror = event => {
+        voiceStatus.textContent =
+            "Voice input error: " + event.error;
+    };
+
+    recognition.onend = () => {
+        micButton.classList.remove("listening");
+    };
+}
+</script>
+
+</body>
+</html>
