@@ -37,3 +37,5 @@ The TfL API can be used without an app key for many requests, but an API key can
     TFL_APP_KEY
 
 The application automatically adds it to requests when present.
+
+<img src="images/homepage.png" width="754">
